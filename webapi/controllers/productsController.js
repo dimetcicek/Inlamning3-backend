@@ -1,79 +1,109 @@
 const express = require('express')
 const controller = express.Router()
-let products = require('../data/simulated_database')
 
-controller.param("id", (httpRequest, httpResponse, next, id) => {
-    httpRequest.product = products.find(product => product.id == id)
+const products = require('../schemas/productSchema')
+
+controller.param("id", async (httpRequest, httpResponse, next, id) => {
+    httpRequest.product = await products.findById(id)
     next()
 })
 
 // http://localhost:5000/api/products
 controller.route("/")
-.get((httpRequest, httpResponse) => {
-    httpResponse.status(200).json(products)
-})
-.post((httpRequest, httpResponse) => {
-    let product = {
-        id: products[products.length - 1]?.id > 0 ? products[products.length - 1].id + 1 : 1,
-        name: httpRequest.body.name,
-        category: httpRequest.body.category,
-        price: httpRequest.body.price,
-        rating: httpRequest.body.rating,
-        img: httpRequest.body.img,
-        title: httpRequest.body.title
+.get(async (httpRequest, httpResponse) => {
+    try
+    {
+        const allProducts = await products.find()
+        httpResponse.status(200).json(allProducts)
     }
+    catch (error)
+    {
+        httpResponse.status(400).json({ text: error })
+    }
+})
+.post(async (httpRequest, httpResponse) => {
+    const { name, category, price, rating, img, title } = httpRequest.body
 
-    products.push(product)
-    httpResponse.status(201).json(product)
+    try
+    {
+        const product = await products.create({
+            name,
+            category,
+            price,
+            rating,
+            img,
+            title
+        })
+    
+        if (product)
+            httpResponse.status(201).json({ text: "Created product!" })
+        else
+            httpResponse.status(400).json({ text: "Failed to create product!" })
+    }
+    catch (error)
+    {
+        httpResponse.status(400).json({ text: `Failed to create product! Error: ${error}` })
+    }
 })
 
 // http://localhost:5000/api/products/1
 controller.route("/:id")
 .get((httpRequest, httpResponse) => {
-    if (httpRequest !== undefined && httpRequest.product !== undefined)
-        httpResponse.status(200).json(httpRequest.product)
-    else
-        httpResponse.status(404).json()
-})
-.put((httpRequest, httpResponse) => {
-    if (httpRequest != undefined)
+    try
     {
-        products.forEach(product => {
-            if (product.id === httpRequest.product.id)
-            {
-                if (httpRequest.body.name)
-                    product.name = httpRequest.body.name
-                
-                if (httpRequest.body.category)
-                    product.category = httpRequest.body.category
-                
-                if (httpRequest.body.price)
-                    product.price = httpRequest.body.price
-                
-                if (httpRequest.body.rating)
-                    product.rating = httpRequest.body.rating
-                
-                if (httpRequest.body.img)
-                    product.img = httpRequest.body.img
-
-                if (httpRequest.body.title)
-                    product.title = httpRequest.body.title
-            }
-        })
-
-        httpResponse.status(200).json(httpRequest.product)
+        if (httpRequest !== undefined && httpRequest.product !== undefined)
+            httpResponse.status(200).json(httpRequest.product)
+        else
+            httpResponse.status(404).json()
     }
-    else
-        httpResponse.status(404).json()
+    catch (error)
+    {
+        httpResponse.status(400).json({ text: `Failed to get product! Error: ${error}` })
+    }
+    
 })
-.delete((httpRequest, httpResponse) => {
-    if (httpRequest != undefined){
-        products = products.filter(product => product.id !== httpRequest.product.id)
-        
-        httpResponse.status(204).json()
+.put(async (httpRequest, httpResponse) => {
+    try
+    {
+        if (httpRequest != undefined && httpRequest.product !== undefined)
+        {
+            const { name, category, price, rating, img, title } = httpRequest.body
+
+            await products.findByIdAndUpdate(httpRequest.params.id, {
+                name: name ? name : httpRequest.product.name,
+                category: category ? category : httpRequest.product.category,
+                price: price ? price : httpRequest.product.price,
+                rating: rating ? rating : httpRequest.product.rating,
+                img: img ? img : httpRequest.product.img,
+                title: title ? title : httpRequest.product.title,
+            })
+            
+            httpResponse.status(204).json()
+        }
+        else
+            httpResponse.status(404).json()
     }
-    else
-        httpResponse.status(404).json()
+    catch (error) 
+    {
+        httpResponse.status(400).json({ text: `Failed to update product! Error: ${error}` })
+    }
+})
+.delete(async (httpRequest, httpResponse) => {
+    try
+    {
+        if (httpRequest != undefined && httpRequest.product !== undefined)
+        {
+            await products.remove(httpRequest.product)
+            
+            httpResponse.status(204).json()
+        }
+        else
+            httpResponse.status(404).json()
+    }
+    catch (error)
+    {
+        httpResponse.status(400).json({ text: `Failed to delete product! Error: ${error}` })
+    }
 })
 
 module.exports = controller
